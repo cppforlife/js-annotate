@@ -1,0 +1,140 @@
+<script
+  src="http://code.jquery.com/jquery-3.2.1.min.js"
+  integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+  crossorigin="anonymous"></script>
+
+<script src="src.js"></script>
+
+<script type="text/javascript">
+
+$(document).ready(function() {
+  $(".annotate").each(function() {
+    TableAnnotatable($(this));
+    TableColumnCopyable($(this), function onCopy(text) {
+      $('#copied-text').text(text);
+    });
+  });
+});
+
+</script>
+
+<style>
+#copied-text {
+  border-top: 2px solid #555;
+  margin: 5px 0 0;
+  padding: 5px 0 0;
+  font-family: monospace;
+  white-space: pre;
+}
+pre { margin: 0; line-height: 18px; }
+table td { vertical-align: top; }
+table td { border-top: 1px solid #f1f1f1; }
+table td.left { border-top: 1px solid #f7f7f7; }
+table td.right { padding-left: 20px; }
+</style>
+
+<div class="annotate"><pre>
+/* Create directory to keep state */
+$ mkdir bosh-1 && cd bosh-1
+
+/* Clone Director templates */
+$ git clone https://github.com/cloudfoundry/bosh-deployment
+
+/* Fill below variables (replace example values) and deploy the Director */
+$ bosh create-env bosh-deployment/bosh.yml \
+    --state=state.json \
+    --vars-store=creds.yml \
+    -o bosh-deployment/vsphere/cpi.yml \
+    -v director_name=bosh-1 \
+    -v internal_cidr=10.0.0.0/24 \
+    -v internal_gw=10.0.0.1 \
+
+/*- Configure vcenter_ip (e.g. '192.168.0.10') with the IP of the vCenter. */
+    -v internal_ip=10.0.0.6 \
+
+/*- Configure network_name (e.g. 'VM Network') with the name of the vSphere network. Create network under the chosen datacenter in the Networks tab. Above example uses 10.0.0.0/24 network and Director VM will be placed at 10.0.0.6. */
+    -v network_name="VM Network" \
+
+/*- Configure vcenter_dc (e.g. `my-dc`) with the name of the datacenter the Director will use for VM creation. */
+    -v vcenter_dc=my-dc \
+
+/*- Configure vcenter_ds (e.g. 'datastore[1-9]') with a regex matching the names of potential datastores the Director will use for storing VMs and associated persistent disks. */
+    -v vcenter_ds=datastore0 \
+    -v vcenter_ip=192.168.0.10 \
+
+/*- Configure vcenter_user (e.g. 'root') and vcenter_password (e.g. 'vmware') with vCenter user name and password. BOSH does not require user to be an admin, but it does require the following privileges. */
+    -v vcenter_user=root \
+    -v vcenter_password=vmware \
+    -v vcenter_templates=bosh-1-templates \
+
+/*- Configure vcenter_vms (e.g. 'my-bosh-vms') and TEMPLATES-FOLDER-NAME (e.g. 'my-bosh-templates') with the name of the folder created to hold VMs and the name of the folder created to hold stemcells. Folders will be automatically created under the chosen datacenter. */
+    -v vcenter_vms=bosh-1-vms \
+
+/*- Configure vcenter_disks (e.g. 'my-bosh-disks') with the name of the VMs folder. Disk folder will be automatically created in the chosen datastore. */
+    -v vcenter_disks=bosh-1-disks \
+
+/*- Configure vcenter_cluster (e.g. 'cluster1') with the name of the vSphere cluster. Create cluster under the chosen datacenter in the Clusters tab. */
+    -v vcenter_cluster=cluster1
+
+/*- [Optional] Configure vcenter_rp (eg. 'my-bosh-rp') with the name of the vSphere resource pool. Create resource pool under the choosen datacenter in the Clusters tab. */
+</pre></div>
+
+<div class="annotate"><pre>
+---
+name: zookeeper
+
+releases:
+/* Zookepeer source code, configuration file, startup scripts */
+- name: zookeeper
+  version: 0.0.5
+  url: https://bosh.io/d/github.com/cppforlife/zookeeper-release?v=0.0.5
+  sha1: 65a07b7526f108b0863d76aada7fc29e2c9e2095
+
+stemcells:
+/* Operating system image onto which install software */
+- alias: default
+  os: ubuntu-trusty
+  version: latest
+
+update:
+  canaries: 2
+  max_in_flight: 1
+  canary_watch_time: 5000-60000
+  update_watch_time: 5000-60000
+
+instance_groups:
+- name: zookeeper
+  /* Spread VMs over multiple availability zones */
+  azs: [z1, z2, z3]
+  /* Create 5 Zookeeper VMs spread */
+  instances: 5
+  jobs:
+  /* Install Zookeeper software onto VMs */
+  - name: zookeeper
+    release: zookeeper
+    properties: {}
+  /* Size VMs in the same way */
+  vm_type: default
+  stemcell: default
+  /* Attach a 10GB persistent disk to each Zookeeper VM */
+  persistent_disk: 10240
+  /* Place VMs onto some network */
+  networks:
+  - name: default
+
+/* Provide a way to smoke test Zookeeper cluster */
+- name: smoke-tests
+  azs: [z1]
+  lifecycle: errand
+  instances: 1
+  jobs:
+  - name: smoke-tests
+    release: zookeeper
+    properties: {}
+  vm_type: default
+  stemcell: default
+  networks:
+  - name: default
+</pre></div>
+
+<div id="copied-text"></div>
